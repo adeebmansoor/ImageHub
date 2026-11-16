@@ -1,11 +1,12 @@
-import { createContext, useEffect, useState } from "react";
+import { createContext, useCallback, useEffect, useState } from "react";
 import axios from 'axios'
 import { toast } from 'react-toastify'
 import { useNavigate } from "react-router-dom";
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AppContext = createContext()
 
-const AppContextProvider = (props) => {
+const AppContextProvider = ({ children }) => {
 
     const [showLogin, setShowLogin] = useState(false)
     const [token, setToken] = useState(localStorage.getItem('token'))
@@ -16,20 +17,34 @@ const AppContextProvider = (props) => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL
     const navigate = useNavigate()
 
-    const loadCreditsData = async () => {
+    const logout = useCallback(() => {
+        localStorage.removeItem('token')
+        setToken('')
+        setUser(null)
+        setCredit(false)
+    }, [])
+
+    const loadCreditsData = useCallback(async () => {
+        if (!token) return
+
         try {
 
             const { data } = await axios.get(backendUrl + '/api/user/credits', { headers: { token } })
             if (data.success) {
                 setCredit(data.credits)
                 setUser(data.user)
+            } else {
+                // Token is invalid or expired: sign the user out instead of
+                // leaving them half logged in
+                logout()
+                toast.error(data.message)
             }
 
         } catch (error) {
             console.log(error)
             toast.error(error.message)
         }
-    }
+    }, [token, backendUrl, logout])
 
     const generateImage = async (prompt) => {
         try {
@@ -52,17 +67,11 @@ const AppContextProvider = (props) => {
         }
     }
 
-    const logout = () => {
-        localStorage.removeItem('token')
-        setToken('')
-        setUser(null)
-    }
-
-    useEffect(()=>{
+    useEffect(() => {
         if (token) {
             loadCreditsData()
         }
-    },[token])
+    }, [token, loadCreditsData])
 
     const value = {
         token, setToken,
@@ -77,7 +86,7 @@ const AppContextProvider = (props) => {
 
     return (
         <AppContext.Provider value={value}>
-            {props.children}
+            {children}
         </AppContext.Provider>
     )
 

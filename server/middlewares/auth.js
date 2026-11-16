@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken'; 
+import jwt from 'jsonwebtoken';
 
 // User authentication middleware
 const authUser = async (req, res, next) => {
@@ -15,21 +15,24 @@ const authUser = async (req, res, next) => {
         const tokenDecode = jwt.verify(token, process.env.JWT_SECRET);
 
         // Check if the decoded token contains a user ID
-        if (tokenDecode.id) {
-
-            // Attach user ID to the request body
-            req.body.userId = tokenDecode.id; 
-            
-        } else {
+        if (!tokenDecode.id) {
             return res.json({ success: false, message: 'Not Authorized. Login Again' });
         }
+
+        // Attach user ID to the request body (always overwrites anything the
+        // client sent under the same name)
+        req.body = req.body || {};
+        req.body.userId = tokenDecode.id;
 
         // Call the next function in the stack
         next();
     } catch (error) {
-        res.json({ success: false, message: error.message });
+        const message = error.name === 'TokenExpiredError'
+            ? 'Session expired. Login Again'
+            : 'Not Authorized. Login Again';
+        res.json({ success: false, message });
     }
 };
 
 // Export the middleware
-export default authUser; 
+export default authUser;

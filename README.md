@@ -7,7 +7,7 @@
 A full-stack **text-to-image generator** with secure login, a credit system and online payments.
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=nodedotjs&logoColor=white)](https://expressjs.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
@@ -163,7 +163,8 @@ sequenceDiagram
     U->>P: Completes payment
     P-->>C: Redirect to Verify page
     C->>S: POST /verify-razor or /verify-stripe
-    S->>S: Add credits to the account
+    S->>P: Ask the gateway if the payment is really paid
+    S->>S: Add credits once (atomic update)
     S-->>C: Updated balance
 ```
 
@@ -194,7 +195,7 @@ cd server
 npm install
 ```
 
-Create `server/.env` using the [variables below](#-environment-variables), then start it:
+Copy `server/.env.example` to `server/.env` and fill it in using the [variables below](#-environment-variables) (`MONGODB_URI`, `JWT_SECRET` and `CLIPDROP_API` are required), then start it:
 
 ```bash
 npm run server
@@ -209,7 +210,7 @@ cd client
 npm install
 ```
 
-Create `client/.env`:
+Copy `client/.env.example` to `client/.env`:
 
 ```env
 VITE_BACKEND_URL=http://localhost:4000
@@ -242,6 +243,7 @@ Visit the URL Vite prints, usually **http://localhost:5173** 🎉
 | `client` | `npm run lint` | Lint with ESLint |
 | `server` | `npm run server` | Start the API with auto-reload (nodemon) |
 | `server` | `npm start` | Start the API with Node |
+| `server` | `npm test` | Run the server tests (no database or API keys needed) |
 
 </details>
 
@@ -264,6 +266,7 @@ Visit the URL Vite prints, usually **http://localhost:5173** 🎉
 | `RAZORPAY_KEY_SECRET` | Razorpay key secret |
 | `STRIPE_SECRET_KEY` | Stripe secret key |
 | `CURRENCY` | Payment currency code, for example `INR` or `USD` |
+| `CLIENT_URL` | URL(s) of the deployed client, comma separated. Used for CORS and the Stripe redirect. Leave empty for local development |
 
 Example:
 
@@ -276,7 +279,10 @@ RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 STRIPE_SECRET_KEY=your_stripe_secret_key
 CURRENCY=INR
+CLIENT_URL=
 ```
+
+> 🔒 Never commit your `.env` files. They are git-ignored; commit only the `.env.example` templates.
 
 </details>
 
@@ -312,9 +318,9 @@ Protected routes need the login token in a **`token`** request header.
 | `POST` | `/api/user/login` | ❌ | Log in, returns a token |
 | `GET` | `/api/user/credits` | ✅ | Get your credit balance and name |
 | `POST` | `/api/user/pay-razor` | ✅ | Create a Razorpay order |
-| `POST` | `/api/user/verify-razor` | ❌ | Confirm a Razorpay payment and add credits |
+| `POST` | `/api/user/verify-razor` | ✅ | Confirm a Razorpay payment (checked with Razorpay) and add credits once |
 | `POST` | `/api/user/pay-stripe` | ✅ | Create a Stripe checkout session |
-| `POST` | `/api/user/verify-stripe` | ✅ | Confirm a Stripe payment and add credits |
+| `POST` | `/api/user/verify-stripe` | ✅ | Confirm a Stripe payment (checked with Stripe) and add credits once |
 
 </details>
 
@@ -379,18 +385,22 @@ ImageHub/
 │
 ├── server/                     # Express backend
 │   ├── configs/
-│   │   └── mongodb.js          # Database connection
+│   │   ├── mongodb.js          # Database connection
+│   │   └── plans.js            # Credit plans (prices live on the server)
 │   ├── controllers/
 │   │   ├── UserController.js   # Auth, credits and payments
 │   │   └── imageController.js  # Image generation
 │   ├── middlewares/
-│   │   └── auth.js             # JWT token check
+│   │   ├── auth.js             # JWT token check
+│   │   └── rateLimit.js        # Login and image-generation rate limits
 │   ├── models/
 │   │   ├── userModel.js
 │   │   └── transactionModel.js
 │   ├── routes/
 │   │   ├── userRoutes.js
 │   │   └── imageRoutes.js
+│   ├── tests/                  # Payment, credit and auth tests (npm test)
+│   ├── .env.example
 │   ├── server.js               # App entry point
 │   └── vercel.json
 │

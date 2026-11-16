@@ -1,4 +1,4 @@
-import React, { useContext } from 'react'
+import { useContext } from 'react'
 import { assets, plans } from '../assets/assets'
 import { AppContext } from '../context/AppContext'
 import { useNavigate } from 'react-router-dom'
@@ -8,12 +8,17 @@ import { motion } from 'framer-motion'
 
 const BuyCredit = () => {
 
-  const { backendUrl, loadCreditsData, user, token, setShowLogin } = useContext(AppContext)
+  const { backendUrl, loadCreditsData, token, setShowLogin } = useContext(AppContext)
 
   const navigate = useNavigate()
 
 
   const initPay = async (order) => {
+
+    if (!window.Razorpay) {
+      toast.error('Razorpay could not be loaded. Check your connection and try again')
+      return
+    }
 
     const options = {
       key: import.meta.env.VITE_RAZORPAY_KEY_ID,
@@ -32,6 +37,8 @@ const BuyCredit = () => {
             loadCreditsData()
             navigate('/')
             toast.success('Credit Added')
+          } else {
+            toast.error(data.message)
           }
         } catch (error) {
           toast.error(error.message)
@@ -46,15 +53,20 @@ const BuyCredit = () => {
   }
 
   const paymentRazorpay = async (planId) => {
-    try {
 
-      if (!user) {
-        setShowLogin(true)
-      }
+    // Not logged in: ask for login and stop (the API needs a token)
+    if (!token) {
+      setShowLogin(true)
+      return
+    }
+
+    try {
 
       const { data } = await axios.post(backendUrl + '/api/user/pay-razor', { planId }, { headers: { token } })
       if (data.success) {
         initPay(data.order)
+      } else {
+        toast.error(data.message)
       }
     } catch (error) {
       toast.error(error.message)
@@ -62,6 +74,12 @@ const BuyCredit = () => {
   }
 
   const paymentStripe = async (planId) => {
+
+    if (!token) {
+      setShowLogin(true)
+      return
+    }
+
     try {
 
       const { data } = await axios.post(backendUrl + '/api/user/pay-stripe', { planId }, { headers: { token } })
